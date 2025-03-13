@@ -4,6 +4,8 @@ import importlib.util
 import time
 from IPython.display import clear_output
 import random
+from utils import load_q_table, store_q_table
+
 # This environment allows you to verify whether your program runs correctly during testing, 
 # as it follows the same observation format from `env.reset()` and `env.step()`. 
 # However, keep in mind that this is just a simplified environment. 
@@ -11,7 +13,6 @@ import random
 # 
 # You are free to modify this file to better match the real environment and train your own agent. 
 # Good luck!
-
 
 class SimpleTaxiEnv():
     def __init__(self, grid_size=5, fuel_limit=50):
@@ -28,6 +29,8 @@ class SimpleTaxiEnv():
        
         self.obstacles = set()  # No obstacles in simple version
         self.destination = None
+
+        self.action_space_size = 6
 
     def reset(self):
         """Reset the environment, ensuring Taxi, passenger, and destination are not overlapping obstacles"""
@@ -175,7 +178,6 @@ class SimpleTaxiEnv():
         actions = ["Move South", "Move North", "Move East", "Move West", "Pick Up", "Drop Off"]
         return actions[action] if action is not None else "None"
 
-
 def run_agent(agent_file, env_config, render=False):
     spec = importlib.util.spec_from_file_location("student_agent", agent_file)
     student_agent = importlib.util.module_from_spec(spec)
@@ -213,10 +215,73 @@ def run_agent(agent_file, env_config, render=False):
     print(f"Agent Finished in {step_count} steps, Score: {total_reward}")
     return total_reward
 
+def train_agent(env_config, pre_trained=False, num_episodes=1000, learning_rate=0.1, discount_factor=0.99, 
+                epsilon=1.0, min_epsilon=0.01, epsilon_decay=0.995):
+    """
+    Trains an agent using Q-learning on the given environment.
+    
+    Parameters:
+    - env: The environment following OpenAI Gym interface.
+    - num_episodes: Number of episodes for training.
+    - learning_rate: Alpha, controls how much new info overrides old info.
+    - discount_factor: Gamma, future reward discount factor.
+    - epsilon: Initial exploration rate.
+    - min_epsilon: Minimum exploration rate.
+    - epsilon_decay: Decay rate of epsilon per episode.
+    
+    Returns:
+    - q_table: Learned Q-values for state-action pairs.
+    """
+
+    q_table = load_q_table() if pre_trained else {} # Initialize Q-table
+
+    for episode in range(num_episodes):
+        env = SimpleTaxiEnv(**env_config)
+        obs, _ = env.reset()
+        done = False
+        total_reward = 0
+
+        while not done:
+            # Initialize state in Q-table if not present
+            if obs not in q_table:
+                q_table[obs] = np.zeros(env.action_space_size)
+
+            # Choose action using epsilon-greedy policy
+            if np.random.rand() < epsilon:
+                action = np.random.choice(env.action_space_size)  # Explore
+            else:
+                action = np.argmax(q_table[obs])  # Exploit
+            
+            # Take action and observe next state and reward
+            next_obs, reward, done, _ = env.step(action)
+            total_reward += reward
+            
+            # Initialize next state in Q-table if not present
+            if next_obs not in q_table:
+                q_table[next_obs] = np.zeros(env.action_space_size)
+
+            # Q-value update using Bellman equation
+            best_next_action = np.argmax(q_table[next_obs])
+            q_table[obs][action] += learning_rate * (reward + discount_factor * q_table[next_obs][best_next_action] - q_table[obs][action])
+            
+            obs = next_obs
+
+        # Decay epsilon
+        epsilon = max(min_epsilon, epsilon * epsilon_decay)
+
+        # Print progress every 100 episodes
+        if (episode + 1) % 100 == 0:
+            print(f"Episode: {episode + 1}/{num_episodes} - Total rewards: {total_reward:.2f} - Epsilon: {epsilon:.4f}")
+
+    store_q_table(q_table)
+    return q_table
+
 if __name__ == "__main__":
     env_config = {
+        "grid_size": 5,
         "fuel_limit": 5000
     }
     
+    q_table = train_agent(env_config)
     agent_score = run_agent("student_agent.py", env_config, render=True)
     print(f"Final Score: {agent_score}")
