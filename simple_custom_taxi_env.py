@@ -26,12 +26,21 @@ class SimpleTaxiEnv():
         self.passenger_picked_up = False
         
         self.stations = [(0, 0), (0, self.grid_size - 1), (self.grid_size - 1, 0), (self.grid_size - 1, self.grid_size - 1)]
-        self.passenger_loc = None
-       
-        self.obstacles = set()  # No obstacles in simple version
-        self.destination = None
+
+        self.passenger_loc, self.destination = random.sample(self.stations, 2)
+        # self.obstacles = set()  # No obstacles in simple version
+        self.obstacles = self.generate_obstacles(0.1)
 
         self.action_space_size = 6
+        
+    def generate_obstacles(self, obstacle_ratio):
+        num_obstacles = max(1, int(self.grid_size ** 2 * obstacle_ratio))  # At least 1 obstacle
+        obstacles = set()
+        while len(obstacles) < num_obstacles:
+            pos = (random.randint(0, self.grid_size - 1), random.randint(0, self.grid_size - 1))
+            if pos not in self.stations and pos != self.passenger_loc and pos != self.destination:
+                obstacles.add(pos)
+        return obstacles
 
     def reset(self):
         """Reset the environment, ensuring Taxi, passenger, and destination are not overlapping obstacles"""
@@ -101,8 +110,6 @@ class SimpleTaxiEnv():
         if self.current_fuel <= 0:
             return self.get_state(), reward -10, True, {}
 
-        
-
         return self.get_state(), reward, False, {}
 
     def get_state(self):
@@ -138,28 +145,32 @@ class SimpleTaxiEnv():
 
         grid = [['.'] * self.grid_size for _ in range(self.grid_size)]
         
-        '''
+        grid[self.stations[0][0]][self.stations[0][1]]='R'
+        grid[self.stations[1][0]][self.stations[1][1]]='G'
+        grid[self.stations[2][0]][self.stations[2][1]]='Y'
+        grid[self.stations[3][0]][self.stations[3][1]]='B'
+        
         # Place passenger
-        py, px = passenger_pos
-        if 0 <= px < self.grid_size and 0 <= py < self.grid_size:
-            grid[py][px] = 'P'
-        '''
+        if self.passenger_loc is not None:
+            py, px = self.passenger_loc
+            if 0 <= px < self.grid_size and 0 <= py < self.grid_size:
+                grid[py][px] = 'P'
         
-        
-        grid[0][0]='R'
-        grid[0][4]='G'
-        grid[4][0]='Y'
-        grid[4][4]='B'
-        '''
         # Place destination
-        dy, dx = destination_pos
-        if 0 <= dx < self.grid_size and 0 <= dy < self.grid_size:
-            grid[dy][dx] = 'D'
-        '''
+        if self.destination is not None:
+            dy, dx = self.destination
+            if 0 <= dx < self.grid_size and 0 <= dy < self.grid_size:
+                grid[dy][dx] = 'D'
+        
+        # Place obstacles
+        for obstacle in self.obstacles:
+            grid[obstacle[0]][obstacle[1]] = 'X'
+        
         # Place taxi
         ty, tx = taxi_pos
         if 0 <= tx < self.grid_size and 0 <= ty < self.grid_size:
             grid[ty][tx] = '🚖'
+            
 
         # Print step info
         print(f"\nStep: {step}")
@@ -189,7 +200,7 @@ def run_agent(agent_file, env_config, render=False):
     total_reward = 0
     done = False
     step_count = 0
-    stations = [(0, 0), (0, 4), (4, 0), (4,4)]
+    stations = [(0, 0), (0, env.grid_size - 1), (env.grid_size - 1, 0), (env.grid_size - 1, env.grid_size - 1)]
     
     taxi_row, taxi_col, _,_,_,_,_,_,_,_,obstacle_north, obstacle_south, obstacle_east, obstacle_west, passenger_look, destination_look = obs
 
@@ -200,11 +211,11 @@ def run_agent(agent_file, env_config, render=False):
     while not done:
         
         action = student_agent.get_action(obs)
-        print("action=", action)
 
         obs, reward, done, _ = env.step(action)
         print('obs=',obs)
         total_reward += reward
+        print("reward:", reward, "total reward=", total_reward)
         step_count += 1
 
         taxi_row, taxi_col, _,_,_,_,_,_,_,_,obstacle_north, obstacle_south, obstacle_east, obstacle_west, passenger_look,destination_look = obs
@@ -216,8 +227,8 @@ def run_agent(agent_file, env_config, render=False):
     print(f"Agent Finished in {step_count} steps, Score: {total_reward}")
     return total_reward
 
-def train_agent(env_config, pre_trained=False, num_episodes=1000, learning_rate=0.1, discount_factor=0.99, 
-                epsilon=1.0, min_epsilon=0.01, epsilon_decay=0.995):
+def train_agent(env_config, pre_trained=False, num_episodes=5000, learning_rate=0.1, discount_factor=0.99, 
+                epsilon=1.0, min_epsilon=0.01, epsilon_decay=0.9999):
     """
     Trains an agent using Q-learning on the given environment.
     
