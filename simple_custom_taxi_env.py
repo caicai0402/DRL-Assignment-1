@@ -1,3 +1,4 @@
+import argparse
 import gym
 import numpy as np
 import importlib.util
@@ -273,15 +274,26 @@ def train_agent(env_config, pre_trained=False, num_episodes=1000, learning_rate=
         if (episode + 1) % 100 == 0:
             print(f"Episode: {episode + 1}/{num_episodes} - Total rewards: {total_reward:.2f} - Epsilon: {epsilon:.4f}")
 
-    store_q_table(q_table)
     return q_table
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--grid_size", type=int, default=5, help="Grid size for the environment")
+    parser.add_argument("--do_training", action="store_true", help="Enable training mode")
+    parser.add_argument("--pre_trained", action="store_true", help="Use pre-trained model")
+    return parser.parse_args()
+
 if __name__ == "__main__":
+    args = parse_args()
+    
     env_config = {
-        "grid_size": 5,
+        "grid_size": args.grid_size,
         "fuel_limit": 5000
     }
     
-    q_table = train_agent(env_config)
+    if args.do_training:
+        q_table = train_agent(env_config, args.pre_trained)
+        store_q_table(q_table)
+        
     agent_score = run_agent("student_agent.py", env_config, render=True)
     print(f"Final Score: {agent_score}")
