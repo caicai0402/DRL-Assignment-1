@@ -19,22 +19,19 @@ class SimpleTaxiEnv():
         """
         self.grid_size = grid_size
         self.fuel_limit = fuel_limit
-        self.current_fuel = fuel_limit
-        self.passenger_picked_up = False
-        
-        self.stations = [(0, 0), (0, self.grid_size - 1), (self.grid_size - 1, 0), (self.grid_size - 1, self.grid_size - 1)]
-
-        self.passenger_loc, self.destination = random.sample(self.stations, 2)
-        self.obstacles = self.generate_obstacles(obstacles_percentage)
-
+        self.obstacles_percentage = obstacles_percentage
         self.action_space_size = 6
+
+    def generate_stations(self, num_stations):
+        all_positions = [(x, y) for x in range(self.grid_size) for y in range(self.grid_size)]
+        return random.sample(all_positions, num_stations)
         
     def generate_obstacles(self, obstacle_ratio):
-        num_obstacles = max(1, int(self.grid_size ** 2 * obstacle_ratio))  # At least 1 obstacle
+        num_obstacles = max(1, int(self.grid_size * self.grid_size * obstacle_ratio))  # At least 1 obstacle
         obstacles = set()
         while len(obstacles) < num_obstacles:
             pos = (random.randint(0, self.grid_size - 1), random.randint(0, self.grid_size - 1))
-            if pos not in self.stations and pos != self.passenger_loc and pos != self.destination:
+            if pos not in self.stations:
                 obstacles.add(pos)
         return obstacles
 
@@ -43,15 +40,16 @@ class SimpleTaxiEnv():
         self.current_fuel = self.fuel_limit
         self.passenger_picked_up = False
 
+        self.stations = self.generate_stations(4)
+        self.obstacles = self.generate_obstacles(self.obstacles_percentage)
+
         available_positions = [
             (x, y) for x in range(self.grid_size) for y in range(self.grid_size)
             if (x, y) not in self.stations and (x, y) not in self.obstacles
         ]
 
         self.taxi_pos = random.choice(available_positions)
-        self.passenger_loc = random.choice([pos for pos in self.stations])
-        possible_destinations = [s for s in self.stations if s != self.passenger_loc]
-        self.destination = random.choice(possible_destinations)
+        self.passenger_loc, self.destination = random.sample(self.stations, 2)
         return self.get_state(), {}
 
     def step(self, action):
@@ -135,7 +133,6 @@ class SimpleTaxiEnv():
         clear_output(wait=True)
 
         grid = [['.'] * self.grid_size for _ in range(self.grid_size)]
-        
         grid[self.stations[0][0]][self.stations[0][1]]='R'
         grid[self.stations[1][0]][self.stations[1][1]]='G'
         grid[self.stations[2][0]][self.stations[2][1]]='Y'
@@ -162,7 +159,6 @@ class SimpleTaxiEnv():
         if 0 <= tx < self.grid_size and 0 <= ty < self.grid_size:
             grid[ty][tx] = '🚖'
             
-
         # Print step info
         print(f"\nStep: {step}")
         print(f"Taxi Position: ({tx}, {ty})")
@@ -188,32 +184,26 @@ def run_agent(agent_file, env_config, render=False):
 
     env = SimpleTaxiEnv(**env_config)
     obs, _ = env.reset()
-    total_reward = 0
+    taxi_row, taxi_col, _, _, _, _, _, _, _, _, obstacle_north, obstacle_south, obstacle_east, obstacle_west, passenger_look, destination_look = obs
+
     done = False
     step_count = 0
-    stations = [(0, 0), (0, env.grid_size - 1), (env.grid_size - 1, 0), (env.grid_size - 1, env.grid_size - 1)]
-    
-    taxi_row, taxi_col, _,_,_,_,_,_,_,_,obstacle_north, obstacle_south, obstacle_east, obstacle_west, passenger_look, destination_look = obs
+    total_reward = 0
 
     if render:
-        env.render_env((taxi_row, taxi_col),
-                       action=None, step=step_count, fuel=env.current_fuel)
+        env.render_env((taxi_row, taxi_col), action=None, step=step_count, fuel=env.current_fuel)
         time.sleep(0.5)
-    while not done:
         
+    while not done:
         action = student_agent.get_action(obs)
-
         obs, reward, done, _ = env.step(action)
         print('obs=',obs)
         total_reward += reward
         print("reward:", reward, "total reward=", total_reward)
         step_count += 1
-
-        taxi_row, taxi_col, _,_,_,_,_,_,_,_,obstacle_north, obstacle_south, obstacle_east, obstacle_west, passenger_look,destination_look = obs
-
+        taxi_row, taxi_col, _, _, _, _, _, _, _, _, obstacle_north, obstacle_south, obstacle_east, obstacle_west, passenger_look,destination_look = obs
         if render:
-            env.render_env((taxi_row, taxi_col),
-                           action=action, step=step_count, fuel=env.current_fuel)
+            env.render_env((taxi_row, taxi_col), action=action, step=step_count, fuel=env.current_fuel)
 
     print(f"Agent Finished in {step_count} steps, Score: {total_reward}")
     return total_reward
