@@ -11,7 +11,6 @@ def avoid_obstacle_get_action(obs):
         obstacle_north, obstacle_south, obstacle_east, obstacle_west = obs[10], obs[11], obs[12], obs[13]
         return (obstacle_south, obstacle_north, obstacle_east, obstacle_west)
     state = get_state(obs)
-    print(list(map(round, q_table[state])), state)
     if state in q_table:
         return np.argmax(q_table[state])
     return np.random.choice(ACTIONS_SPACE[:4])
