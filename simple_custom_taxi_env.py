@@ -1,11 +1,8 @@
 import argparse
-import gym
-import numpy as np
 import importlib.util
 import time
 from IPython.display import clear_output
 import random
-from utils import load_q_table, store_q_table
 
 # This environment allows you to verify whether your program runs correctly during testing, 
 # as it follows the same observation format from `env.reset()` and `env.step()`. 
@@ -16,7 +13,7 @@ from utils import load_q_table, store_q_table
 # Good luck!
 
 class SimpleTaxiEnv():
-    def __init__(self, grid_size=5, fuel_limit=50):
+    def __init__(self, grid_size=5, fuel_limit=5000, obstacles_percentage=0.1):
         """
         Custom Taxi environment supporting different grid sizes.
         """
@@ -28,8 +25,7 @@ class SimpleTaxiEnv():
         self.stations = [(0, 0), (0, self.grid_size - 1), (self.grid_size - 1, 0), (self.grid_size - 1, self.grid_size - 1)]
 
         self.passenger_loc, self.destination = random.sample(self.stations, 2)
-        # self.obstacles = set()  # No obstacles in simple version
-        self.obstacles = self.generate_obstacles(0.1)
+        self.obstacles = self.generate_obstacles(obstacles_percentage)
 
         self.action_space_size = 6
         
@@ -46,7 +42,6 @@ class SimpleTaxiEnv():
         """Reset the environment, ensuring Taxi, passenger, and destination are not overlapping obstacles"""
         self.current_fuel = self.fuel_limit
         self.passenger_picked_up = False
-        
 
         available_positions = [
             (x, y) for x in range(self.grid_size) for y in range(self.grid_size)
@@ -54,13 +49,9 @@ class SimpleTaxiEnv():
         ]
 
         self.taxi_pos = random.choice(available_positions)
-        
         self.passenger_loc = random.choice([pos for pos in self.stations])
-        
-        
         possible_destinations = [s for s in self.stations if s != self.passenger_loc]
         self.destination = random.choice(possible_destinations)
-        
         return self.get_state(), {}
 
     def step(self, action):
@@ -77,10 +68,9 @@ class SimpleTaxiEnv():
         elif action == 3:  # Move Left
             next_col -= 1
         
-        
         if action in [0, 1, 2, 3]:  # Only movement actions should be checked
             if (next_row, next_col) in self.obstacles or not (0 <= next_row < self.grid_size and 0 <= next_col < self.grid_size):
-                reward -=5
+                reward -= 10
             else:
                 self.taxi_pos = (next_row, next_col)
                 if self.passenger_picked_up:
@@ -90,19 +80,20 @@ class SimpleTaxiEnv():
                 if self.taxi_pos == self.passenger_loc:
                     self.passenger_picked_up = True
                     self.passenger_loc = self.taxi_pos  
+                    reward += 10
                 else:
-                    reward = -10  
+                    reward -= 10  
             elif action == 5:  # DROPOFF
                 if self.passenger_picked_up:
                     if self.taxi_pos == self.destination:
                         reward += 50
                         return self.get_state(), reward -0.1, True, {}
                     else:
-                        reward -=10
+                        reward -= 10
                     self.passenger_picked_up = False
                     self.passenger_loc = self.taxi_pos
                 else:
-                    reward -=10
+                    reward -= 10
                     
         reward -= 0.1  
 
@@ -136,10 +127,10 @@ class SimpleTaxiEnv():
         destination_loc_west  = int( (taxi_row, taxi_col - 1) == self.destination)
         destination_loc_middle  = int( (taxi_row, taxi_col) == self.destination)
         destination_look = destination_loc_north or destination_loc_south or destination_loc_east or destination_loc_west or destination_loc_middle
-
-        
+    
         state = (taxi_row, taxi_col, self.stations[0][0],self.stations[0][1] ,self.stations[1][0],self.stations[1][1],self.stations[2][0],self.stations[2][1],self.stations[3][0],self.stations[3][1],obstacle_north, obstacle_south, obstacle_east, obstacle_west, passenger_look, destination_look)
         return state
+    
     def render_env(self, taxi_pos, action=None, step=None, fuel=None):
         clear_output(wait=True)
 
@@ -227,84 +218,19 @@ def run_agent(agent_file, env_config, render=False):
     print(f"Agent Finished in {step_count} steps, Score: {total_reward}")
     return total_reward
 
-def train_agent(env_config, pre_trained=False, num_episodes=5000, learning_rate=0.1, discount_factor=0.99, 
-                epsilon=1.0, min_epsilon=0.01, epsilon_decay=0.9999):
-    """
-    Trains an agent using Q-learning on the given environment.
-    
-    Parameters:
-    - env: The environment following OpenAI Gym interface.
-    - num_episodes: Number of episodes for training.
-    - learning_rate: Alpha, controls how much new info overrides old info.
-    - discount_factor: Gamma, future reward discount factor.
-    - epsilon: Initial exploration rate.
-    - min_epsilon: Minimum exploration rate.
-    - epsilon_decay: Decay rate of epsilon per episode.
-    
-    Returns:
-    - q_table: Learned Q-values for state-action pairs.
-    """
-
-    q_table = load_q_table() if pre_trained else {} # Initialize Q-table
-
-    for episode in range(num_episodes):
-        env = SimpleTaxiEnv(**env_config)
-        obs, _ = env.reset()
-        done = False
-        total_reward = 0
-
-        while not done:
-            # Initialize state in Q-table if not present
-            if obs not in q_table:
-                q_table[obs] = np.zeros(env.action_space_size)
-
-            # Choose action using epsilon-greedy policy
-            if np.random.rand() < epsilon:
-                action = np.random.choice(env.action_space_size)  # Explore
-            else:
-                action = np.argmax(q_table[obs])  # Exploit
-            
-            # Take action and observe next state and reward
-            next_obs, reward, done, _ = env.step(action)
-            total_reward += reward
-            
-            # Initialize next state in Q-table if not present
-            if next_obs not in q_table:
-                q_table[next_obs] = np.zeros(env.action_space_size)
-
-            # Q-value update using Bellman equation
-            best_next_action = np.argmax(q_table[next_obs])
-            q_table[obs][action] += learning_rate * (reward + discount_factor * q_table[next_obs][best_next_action] - q_table[obs][action])
-            
-            obs = next_obs
-
-        # Decay epsilon
-        epsilon = max(min_epsilon, epsilon * epsilon_decay)
-
-        # Print progress every 100 episodes
-        if (episode + 1) % 100 == 0:
-            print(f"Episode: {episode + 1}/{num_episodes} - Total rewards: {total_reward:.2f} - Epsilon: {epsilon:.4f}")
-
-    return q_table
-
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--grid_size", type=int, default=5, help="Grid size for the environment")
-    parser.add_argument("--do_training", action="store_true", help="Enable training mode")
-    parser.add_argument("--pre_trained", action="store_true", help="Use pre-trained model")
+    parser.add_argument("--grid_size", type=int, default=5, help="Size of the grid environment")
+    parser.add_argument("--fuel_limit", type=int, default=5000, help="Maximum fuel available for the agent")
+    parser.add_argument("--obstacles_percentage", type=float, default=0.1, help="Percentage of grid occupied by obstacles (0.0 to 1.0)")
     return parser.parse_args()
 
 if __name__ == "__main__":
     args = parse_args()
-    
     env_config = {
         "grid_size": args.grid_size,
-        "fuel_limit": 5000
+        "fuel_limit": args.fuel_limit,
+        "obstacles_percentage": args.obstacles_percentage
     }
-    
-    if args.do_training:
-        q_table = train_agent(env_config, args.pre_trained)
-        store_q_table(q_table)
-        
     agent_score = run_agent("student_agent.py", env_config, render=True)
     print(f"Final Score: {agent_score}")
