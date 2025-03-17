@@ -21,10 +21,18 @@ class SimpleTaxiEnv():
         self.fuel_limit = fuel_limit
         self.obstacles_percentage = obstacles_percentage
         self.action_space_size = 6
-
+    
     def generate_stations(self, num_stations):
         all_positions = [(x, y) for x in range(self.grid_size) for y in range(self.grid_size)]
-        return random.sample(all_positions, num_stations)
+        random.shuffle(all_positions)
+        stations = []
+        for x, y in all_positions:
+            if any(abs(x - sx) + abs(y - sy) == 1 for sx, sy in stations):  
+                continue
+            stations.append((x, y))
+            if len(stations) == num_stations:
+                break
+        return stations
         
     def generate_obstacles(self, obstacle_ratio):
         num_obstacles = max(1, int(self.grid_size * self.grid_size * obstacle_ratio))  # At least 1 obstacle

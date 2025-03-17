@@ -4,8 +4,6 @@ from tqdm import tqdm
 from simple_custom_taxi_env import SimpleTaxiEnv
 from utils import load_q_table, store_q_table
 
-MOVE_SOUTH, MOVE_NORTH, MOVE_EAST, MOVE_WEST, PICK_UP, DROP_OFF = 0, 1, 2, 3, 4, 5
-
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--grid_size", type=int, default=5, help="Size of the grid environment")
@@ -15,39 +13,9 @@ def parse_args():
     parser.add_argument("--save_path", type=str, default="q_table.pkl", help="Path to save the training results")
     return parser.parse_args()
 
-def get_state(obs, stations_state, passenger_picked_up, prev_action):
-    taxi_pos = (obs[0], obs[1])
-    stations_offset = [
-        (obs[2] - taxi_pos[0], obs[3] - taxi_pos[1]),
-        (obs[4] - taxi_pos[0], obs[5] - taxi_pos[1]),
-        (obs[6] - taxi_pos[0], obs[7] - taxi_pos[1]),
-        (obs[8] - taxi_pos[0], obs[9] - taxi_pos[1])
-    ]
-    obstacle_south, obstacle_north, obstacle_east, obstacle_west = obs[11], obs[10], obs[12], obs[13]
-    passenger_look, destination_look = obs[14], obs[15]
-    stations_dis = [stations_state[idx] + abs(station_offset[0]) + abs(station_offset[1]) for idx, station_offset in enumerate(stations_offset)]
-
-    target = np.argmin(stations_dis)
-    if stations_dis[target] == 0:
-        stations_dis[target] = stations_state[target] = 1000000
-        if passenger_look and prev_action == PICK_UP:
-            passenger_picked_up[0] = True
-        elif destination_look:
-            stations_state[target] = 777777
-        
-    if passenger_picked_up[0] and 777777 in stations_state:
-        target = stations_state.index(777777)
-    else:
-        target = np.argmin(stations_dis)
-    
-    if passenger_picked_up[0]:
-        return (obstacle_south, obstacle_north, obstacle_east, obstacle_west,
-                stations_offset[target][0], stations_offset[target][1],
-                passenger_picked_up[0], destination_look)
-    else:
-        return (obstacle_south, obstacle_north, obstacle_east, obstacle_west,
-                stations_offset[target][0], stations_offset[target][1],
-                passenger_picked_up[0], passenger_look)
+def get_state(obs):
+    obstacle_north, obstacle_south, obstacle_east, obstacle_west = obs[10], obs[11], obs[12], obs[13]
+    return (obstacle_south, obstacle_north, obstacle_east, obstacle_west)
 
 def train_agent(env_config, pretrained_model=None, num_episodes=2000, alpha=0.99, gamma=0.01, 
                 epsilon_start=1.0, epsilon_end=0.1, epsilon_decay=0.9995):
@@ -60,19 +28,13 @@ def train_agent(env_config, pretrained_model=None, num_episodes=2000, alpha=0.99
     
     for episode in tqdm(range(num_episodes)):
         obs, _ = env.reset()
-
-        stations_state = [0, 0, 0, 0]
-        passenger_picked_up = [False]
-        prev_action = None
-
-        state = get_state(obs, stations_state, passenger_picked_up, prev_action)
+        state = get_state(obs)
         done = False
         total_reward = 0
-
         while not done:    
             if state not in q_table:
                 q_table[state] = np.zeros(env.action_space_size)
-                
+
             if np.random.rand() < epsilon:
                 action = np.random.choice(env.action_space_size)
             else:
@@ -80,18 +42,16 @@ def train_agent(env_config, pretrained_model=None, num_episodes=2000, alpha=0.99
             
             obs, reward, done, _ = env.step(action)
 
-            ## reward shaping
-            if state[action]:
+            if action >= 4 or state[action]:
                 reward = -1000
             total_reward += reward
             
-            next_state = get_state(obs, stations_state, passenger_picked_up, prev_action)
+            next_state = get_state(obs)            
             if next_state not in q_table:
                 q_table[next_state] = np.zeros(env.action_space_size)
             q_table[state][action] += alpha * (reward + gamma * np.max(q_table[next_state]) - q_table[state][action])
-
+            
             state = next_state
-            prev_action = action
             
         epsilon = max(epsilon_end, epsilon * epsilon_decay)
 
