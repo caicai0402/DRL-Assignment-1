@@ -2,9 +2,10 @@ import argparse
 import numpy as np
 from tqdm import tqdm
 from simple_custom_taxi_env import SimpleTaxiEnv
-from utils import load_q_table, store_q_table
+from utils import load_qtable, store_qtable
 
 MOVE_SOUTH, MOVE_NORTH, MOVE_EAST, MOVE_WEST, PICK_UP, DROP_OFF = 0, 1, 2, 3, 4, 5
+ACTIONS_SPACE = [MOVE_SOUTH, MOVE_NORTH, MOVE_EAST, MOVE_WEST, PICK_UP, DROP_OFF]
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -12,7 +13,7 @@ def parse_args():
     parser.add_argument("--fuel_limit", type=int, default=5000, help="Maximum fuel available for the agent")
     parser.add_argument("--obstacles_percentage", type=float, default=0.1, help="Percentage of grid occupied by obstacles (0.0 to 1.0)")
     parser.add_argument("--pretrained_model", type=str, default=None, help="Path to the pretrained model for continued training")
-    parser.add_argument("--save_path", type=str, default="q_table.pkl", help="Path to save the training results")
+    parser.add_argument("--save_path", type=str, default="qtable.pkl", help="Path to save the training results")
     return parser.parse_args()
 
 def get_state(obs, stations_state, passenger_picked_up, prev_action):
@@ -29,9 +30,12 @@ def get_state(obs, stations_state, passenger_picked_up, prev_action):
 
     target = np.argmin(stations_dis)
     if stations_dis[target] == 0:
-        stations_dis[target] = stations_state[target] = 1000000
-        if passenger_look and prev_action == PICK_UP:
-            passenger_picked_up[0] = True
+        stations_dis[target] = stations_state[target] = 1 << 30    
+        if not passenger_picked_up[0] and passenger_look:
+            if prev_action == PICK_UP:
+                passenger_picked_up[0] = True
+            else:
+                stations_dis[target] = stations_state[target] = 0
         elif destination_look:
             stations_state[target] = 777777
         
@@ -39,7 +43,7 @@ def get_state(obs, stations_state, passenger_picked_up, prev_action):
         target = stations_state.index(777777)
     else:
         target = np.argmin(stations_dis)
-    
+        
     if passenger_picked_up[0]:
         return (obstacle_south, obstacle_north, obstacle_east, obstacle_west,
                 stations_offset[target][0], stations_offset[target][1],
@@ -49,11 +53,11 @@ def get_state(obs, stations_state, passenger_picked_up, prev_action):
                 stations_offset[target][0], stations_offset[target][1],
                 passenger_picked_up[0], passenger_look)
 
-def train_agent(env_config, pretrained_model=None, num_episodes=2000, alpha=0.99, gamma=0.01, 
-                epsilon_start=1.0, epsilon_end=0.1, epsilon_decay=0.9995):
+def train_agent(env_config, pretrained_model=None, num_episodes=100000, alpha=0.99, gamma=0.01,
+                epsilon_start=1.0, epsilon_end=0.1, epsilon_decay=0.99999):
     
     env = SimpleTaxiEnv(**env_config)
-    q_table = {} if pretrained_model is None else load_q_table(pretrained_model)
+    qtable = {} if pretrained_model is None else load_qtable(pretrained_model)
 
     epsilon = epsilon_start
     rewards_per_episode = []
@@ -63,35 +67,63 @@ def train_agent(env_config, pretrained_model=None, num_episodes=2000, alpha=0.99
 
         stations_state = [0, 0, 0, 0]
         passenger_picked_up = [False]
-        prev_action = None
-
-        state = get_state(obs, stations_state, passenger_picked_up, prev_action)
+        state = get_state(obs, stations_state, passenger_picked_up, None)
         done = False
         total_reward = 0
-
+        step_count = 0
         while not done:    
-            if state not in q_table:
-                q_table[state] = np.zeros(env.action_space_size)
+            if state not in qtable:
+                qtable[state] = np.zeros(env.action_space_size)
+                qtable[state][PICK_UP] = qtable[state][DROP_OFF] = -100
                 
-            if np.random.rand() < epsilon:
-                action = np.random.choice(env.action_space_size)
+            if (state[4], state[5]) == (0, 0) and state[6] and state[7]:
+                action = DROP_OFF
+            elif (state[4], state[5]) == (0, 0) and not state[6] and state[7]:
+                action = PICK_UP
+            elif np.random.rand() < epsilon:
+                action = np.random.choice([MOVE_SOUTH, MOVE_NORTH, MOVE_EAST, MOVE_WEST])
             else:
-                action = np.argmax(q_table[state])
+                action = np.argmax(qtable[state])
             
             obs, reward, done, _ = env.step(action)
+            next_state = get_state(obs, stations_state, passenger_picked_up, action)
 
             ## reward shaping
-            if state[action]:
-                reward = -1000
+            if action in [MOVE_SOUTH, MOVE_NORTH, MOVE_EAST, MOVE_WEST]:
+                if state[action]:
+                    reward -= 1000
+                elif (
+                    ((state[4], state[5]) == (1, 0) and action == MOVE_SOUTH) or
+                    ((state[4], state[5]) == (-1, 0) and action == MOVE_NORTH) or 
+                    ((state[4], state[5]) == (0, 1) and action == MOVE_EAST) or
+                    ((state[4], state[5]) == (0, -1) and action == MOVE_WEST)
+                ):
+                    reward += 100 - step_count / 10
+                    step_count = 0
+                elif abs(state[4]) + abs(state[5]) > abs(next_state[4]) + abs(next_state[5]):
+                    reward += 10
+            elif action == PICK_UP:
+                if state[6] == False and next_state[6] == True:
+                    reward += 500 - step_count / 10
+                    step_count = 0
+                else:
+                    reward -= 1000
+            elif action == DROP_OFF:
+                if done:
+                    reward += 500 - step_count / 10
+                    step_count = 0
+                else:
+                    reward -= 1000
+
             total_reward += reward
-            
-            next_state = get_state(obs, stations_state, passenger_picked_up, prev_action)
-            if next_state not in q_table:
-                q_table[next_state] = np.zeros(env.action_space_size)
-            q_table[state][action] += alpha * (reward + gamma * np.max(q_table[next_state]) - q_table[state][action])
+
+            if next_state not in qtable:
+                qtable[next_state] = np.zeros(env.action_space_size)
+                qtable[state][PICK_UP] = qtable[state][DROP_OFF] = -100
+            qtable[state][action] += alpha * (reward + gamma * np.max(qtable[next_state]) - qtable[state][action])
 
             state = next_state
-            prev_action = action
+            step_count += 1
             
         epsilon = max(epsilon_end, epsilon * epsilon_decay)
 
@@ -100,7 +132,7 @@ def train_agent(env_config, pretrained_model=None, num_episodes=2000, alpha=0.99
             avg_reward = np.mean(rewards_per_episode[-100:])
             print(f"🚀 Episode {episode + 1}/{num_episodes}, Average Reward: {avg_reward:.2f}, Epsilon: {epsilon:.4f}")
 
-    return q_table
+    return qtable
 
 if __name__ == "__main__":
     args = parse_args()
@@ -109,5 +141,5 @@ if __name__ == "__main__":
         "fuel_limit": args.fuel_limit,
         "obstacles_percentage": args.obstacles_percentage
     }
-    q_table = train_agent(env_config, args.pretrained_model)
-    store_q_table(q_table, args.save_path)
+    qtable = train_agent(env_config, args.pretrained_model)
+    store_qtable(qtable, args.save_path)

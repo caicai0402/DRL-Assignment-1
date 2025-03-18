@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 class LSTMPPO(nn.Module):
-    def __init__(self, state_size=16, action_size=6, hidden_in_dim=64, hidden_out_dim=32, learning_rate=0.01):
+    def __init__(self, state_size=8, action_size=6, hidden_in_dim=64, hidden_out_dim=32, learning_rate=0.01):
         super().__init__()
         self.state_size = state_size
         self.action_size = action_size

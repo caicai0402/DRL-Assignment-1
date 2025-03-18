@@ -35,7 +35,7 @@ class SimpleTaxiEnv():
         return stations
         
     def generate_obstacles(self, obstacle_ratio):
-        num_obstacles = max(1, int(self.grid_size * self.grid_size * obstacle_ratio))  # At least 1 obstacle
+        num_obstacles = int(self.grid_size * self.grid_size * obstacle_ratio)
         obstacles = set()
         while len(obstacles) < num_obstacles:
             pos = (random.randint(0, self.grid_size - 1), random.randint(0, self.grid_size - 1))
@@ -76,7 +76,7 @@ class SimpleTaxiEnv():
         
         if action in [0, 1, 2, 3]:  # Only movement actions should be checked
             if (next_row, next_col) in self.obstacles or not (0 <= next_row < self.grid_size and 0 <= next_col < self.grid_size):
-                reward -= 10
+                reward -= 5
             else:
                 self.taxi_pos = (next_row, next_col)
                 if self.passenger_picked_up:
@@ -86,7 +86,6 @@ class SimpleTaxiEnv():
                 if self.taxi_pos == self.passenger_loc:
                     self.passenger_picked_up = True
                     self.passenger_loc = self.taxi_pos  
-                    reward += 10
                 else:
                     reward -= 10  
             elif action == 5:  # DROPOFF
@@ -213,7 +212,7 @@ def run_agent(agent_file, env_config, render=False):
         if render:
             env.render_env((taxi_row, taxi_col), action=action, step=step_count, fuel=env.current_fuel)
 
-    print(f"Agent Finished in {step_count} steps, Score: {total_reward}")
+    print(f"Agent Finished in {step_count} steps, Score: {round(total_reward, 2)}")
     return total_reward
 
 def parse_args():
@@ -231,4 +230,5 @@ if __name__ == "__main__":
         "obstacles_percentage": args.obstacles_percentage
     }
     agent_score = run_agent("student_agent.py", env_config, render=True)
-    print(f"Final Score: {agent_score}")
+    print(f"Final Score: {round(agent_score, 2)}")
+    

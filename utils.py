@@ -1,13 +1,13 @@
 import pickle
 
-def load_q_table(q_table_path="q_table.pkl"):
+def load_qtable(qtable_path="qtable.pkl"):
     try:
-        with open(q_table_path, "rb") as f:
-            q_table = pickle.load(f)
+        with open(qtable_path, "rb") as f:
+            qtable = pickle.load(f)
     except FileNotFoundError:
-        q_table = {}
-    return q_table
+        qtable = {}
+    return qtable
 
-def store_q_table(q_table, q_table_path="q_table.pkl"):
-    with open(q_table_path, "wb") as f:
-        pickle.dump(q_table, f)
+def store_qtable(qtable, qtable_path="qtable.pkl"):
+    with open(qtable_path, "wb") as f:
+        pickle.dump(qtable, f)
