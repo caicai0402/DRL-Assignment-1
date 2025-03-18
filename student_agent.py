@@ -6,6 +6,7 @@ from utils import load_qtable
 
 MOVE_SOUTH, MOVE_NORTH, MOVE_EAST, MOVE_WEST, PICK_UP, DROP_OFF = 0, 1, 2, 3, 4, 5
 ACTIONS_SPACE = [MOVE_SOUTH, MOVE_NORTH, MOVE_EAST, MOVE_WEST, PICK_UP, DROP_OFF]
+BACK_ACTIONS_SPACE = [MOVE_NORTH, MOVE_SOUTH, MOVE_WEST, MOVE_EAST]
 
 avoid_obstacles_qtable = None
 def avoid_obstacles_qtable_get_action(obs):
@@ -47,7 +48,11 @@ def get_action(obs):
 
     avoid_obstacles_action_scores = avoid_obstacles_qtable[avoid_obstacles_get_state(obs)]
     action_scores = qtable[get_state(obs, stations_state, passenger_picked_up, action)]
-    action = np.argmax(avoid_obstacles_action_scores + action_scores)
+    mix_scores = avoid_obstacles_action_scores + action_scores
+    if action in BACK_ACTIONS_SPACE:
+        mix_scores[BACK_ACTIONS_SPACE[action]] = -101
+    action = np.argmax(mix_scores)
+    action_scores[action] -= 1
     return action
 
 

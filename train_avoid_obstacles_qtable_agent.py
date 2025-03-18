@@ -34,10 +34,10 @@ def train_agent(env_config, pretrained_model=None, num_episodes=1000, alpha=1.0,
         state = get_state(obs)
         done = False
         total_reward = 0
-        while not done:    
+        while not done:
             if state not in qtable:
-                qtable[state] = np.ones(env.action_space_size)
-                qtable[state][PICK_UP] = qtable[state][DROP_OFF] = 0
+                qtable[state] = np.zeros(env.action_space_size)
+                qtable[state][PICK_UP] = qtable[state][DROP_OFF] = -1000000000
                
             if np.random.rand() < epsilon:
                 action = np.random.choice([MOVE_SOUTH, MOVE_NORTH, MOVE_EAST, MOVE_WEST])
@@ -47,7 +47,7 @@ def train_agent(env_config, pretrained_model=None, num_episodes=1000, alpha=1.0,
             obs, reward, done, _ = env.step(action)
             next_state = get_state(obs)
 
-            if action in [MOVE_SOUTH, MOVE_NORTH, MOVE_EAST, MOVE_WEST] and state[action]:
+            if action in [PICK_UP, DROP_OFF] or state[action]:
                 reward = -1000000000
             else:
                 reward = 0
@@ -55,7 +55,7 @@ def train_agent(env_config, pretrained_model=None, num_episodes=1000, alpha=1.0,
                       
             if next_state not in qtable:
                 qtable[next_state] = np.ones(env.action_space_size)
-                qtable[next_state][PICK_UP] = qtable[next_state][DROP_OFF] = 0
+                qtable[next_state][PICK_UP] = qtable[next_state][DROP_OFF] = -1000000000
             qtable[state][action] += alpha * (reward + gamma * np.max(qtable[next_state]) - qtable[state][action])
             
             state = next_state

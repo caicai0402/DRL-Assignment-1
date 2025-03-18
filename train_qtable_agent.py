@@ -70,7 +70,7 @@ def train_agent(env_config, pretrained_model=None, num_episodes=100000, alpha=0.
         while not done:
             if state not in qtable:
                 qtable[state] = np.zeros(env.action_space_size)
-                qtable[state][PICK_UP] = qtable[state][DROP_OFF] = -100
+                qtable[state][PICK_UP] = qtable[state][DROP_OFF] = -1000000000
             
             if (state[0], state[1]) == (0, 0) and state[2] and state[3]:
                 action = DROP_OFF
@@ -86,37 +86,29 @@ def train_agent(env_config, pretrained_model=None, num_episodes=100000, alpha=0.
 
             ## reward shaping
             if action in [MOVE_SOUTH, MOVE_NORTH, MOVE_EAST, MOVE_WEST]:
-                obstacles = [obs[11], obs[10], obs[12], obs[13]]
-                if obstacles[action]:
-                    reward -= 1000
-                elif (
+                if (
                     ((state[0], state[1]) == (1, 0) and action == MOVE_SOUTH) or
                     ((state[0], state[1]) == (-1, 0) and action == MOVE_NORTH) or 
                     ((state[0], state[1]) == (0, 1) and action == MOVE_EAST) or
                     ((state[0], state[1]) == (0, -1) and action == MOVE_WEST)
                 ):
-                    reward += 100 - step_count / 10
-                    step_count = 0
+                    reward = 100
                 elif abs(state[0]) + abs(state[1]) > abs(next_state[0]) + abs(next_state[1]):
-                    reward += 10
+                    reward = 10
+                else:
+                    reward = -100
             elif action == PICK_UP:
                 if state[2] == False and next_state[2] == True:
-                    reward += 500 - step_count / 10
-                    step_count = 0
-                else:
-                    reward -= 1000
+                    reward = 10000000000
             elif action == DROP_OFF:
                 if done:
-                    reward += 500 - step_count / 10
-                    step_count = 0
-                else:
-                    reward -= 1000
+                    reward = 10000000000
 
-            total_reward += reward
+            total_reward += np.sign(reward) * np.log10(abs(reward))
 
             if next_state not in qtable:
                 qtable[next_state] = np.zeros(env.action_space_size)
-                qtable[state][PICK_UP] = qtable[state][DROP_OFF] = -100
+                qtable[state][PICK_UP] = qtable[state][DROP_OFF] = -1000000000
             qtable[state][action] += alpha * (reward + gamma * np.max(qtable[next_state]) - qtable[state][action])
 
             obs = next_obs

@@ -2,15 +2,15 @@ run:
 	python simple_custom_taxi_env.py \
 		--grid_size 10 \
 		--fuel_limit 5000 \
-		--obstacles_percentage 0.1
+		--obstacles_percentage 0.2
 
 train:
 	python train_qtable_agent.py \
 		--grid_size 10 \
 		--fuel_limit 5000 \
 		--obstacles_percentage 0 \
-		--pretrained_model qtable.pkl \
-		--save_path qtable.pkl
+		--pretrained_model results/qtable.pkl \
+		--save_path results/qtable.pkl
 
 train_pg:
 	python train_policy_table_agent.py \
