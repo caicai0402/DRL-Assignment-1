@@ -20,7 +20,7 @@ def get_state(obs):
     obstacle_north, obstacle_south, obstacle_east, obstacle_west = obs[10], obs[11], obs[12], obs[13]
     return (obstacle_south, obstacle_north, obstacle_east, obstacle_west)
 
-def train_agent(env_config, pretrained_model=None, num_episodes=1000, alpha=1.0, gamma=0.0, 
+def train_agent(env_config, pretrained_model=None, num_episodes=1000, alpha=0.9, gamma=0.1, 
                 epsilon_start=1.0, epsilon_end=0.1, epsilon_decay=0.999):
     
     env = SimpleTaxiEnv(**env_config)

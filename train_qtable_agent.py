@@ -49,7 +49,7 @@ def get_state(obs, stations_state, passenger_picked_up, prev_action):
     else:
         return (stations_offset[target][0], stations_offset[target][1], passenger_picked_up[0], passenger_look)
 
-def train_agent(env_config, pretrained_model=None, num_episodes=100000, alpha=0.99, gamma=0.0,
+def train_agent(env_config, pretrained_model=None, num_episodes=100000, alpha=0.9, gamma=0.1,
                 epsilon_start=1.0, epsilon_end=0.1, epsilon_decay=0.99999):
     
     env = SimpleTaxiEnv(**env_config)
