@@ -65,9 +65,6 @@ def qtable_get_action(obs):
 
 avoid_obstacles_qtable, qtable, stations_state, passenger_picked_up, action = None, None, None, None, None
 def get_action(obs):
-    # return avoid_obstacles_qtable_get_action(obs)
-    # return qtable_get_action(obs)
-    
     from train_avoid_obstacles_qtable_agent import get_state as avoid_obstacles_get_state
     from train_qtable_agent import get_state
 
