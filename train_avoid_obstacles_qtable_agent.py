@@ -5,7 +5,6 @@ from simple_custom_taxi_env import SimpleTaxiEnv
 from utils import load_qtable, store_qtable
 
 MOVE_SOUTH, MOVE_NORTH, MOVE_EAST, MOVE_WEST, PICK_UP, DROP_OFF = 0, 1, 2, 3, 4, 5
-ACTIONS_SPACE = [MOVE_SOUTH, MOVE_NORTH, MOVE_EAST, MOVE_WEST, PICK_UP, DROP_OFF]
 
 def parse_args():
     parser = argparse.ArgumentParser()
