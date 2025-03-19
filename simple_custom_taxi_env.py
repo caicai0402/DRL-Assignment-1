@@ -2,7 +2,7 @@ import argparse
 import importlib.util
 import time
 import random
-# from IPython.display import clear_output
+from IPython.display import clear_output
 
 # This environment allows you to verify whether your program runs correctly during testing, 
 # as it follows the same observation format from `env.reset()` and `env.step()`. 
@@ -137,7 +137,7 @@ class SimpleTaxiEnv():
         return state
     
     def render_env(self, taxi_pos, action=None, step=None, fuel=None):
-        # clear_output(wait=True)
+        clear_output(wait=True)
 
         grid = [['.'] * self.grid_size for _ in range(self.grid_size)]
         grid[self.stations[0][0]][self.stations[0][1]]='R'
